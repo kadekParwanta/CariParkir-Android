@@ -1,6 +1,7 @@
 package com.dwipa.cariparkir;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -8,7 +9,6 @@ import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdate;
@@ -16,9 +16,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -41,7 +39,7 @@ import fr.quentinklein.slt.LocationTracker;
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
-    LatLng MY_POSITION = new LatLng(-8.6757927, 115.2137193);
+    LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
     JSONArray parkingResponse;
     SupportMapFragment mapFragment;
 
@@ -62,7 +60,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 @Override
                 public void onLocationFound(Location location) {
                     // Do some stuff
-                    MY_POSITION = new LatLng(location.getLatitude(),location.getLongitude());
+                    myPosition = new LatLng(location.getLatitude(),location.getLongitude());
                     sendRequest();
                 }
 
@@ -100,13 +98,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.addMarker(loc);
         }
 
-        CameraUpdate currentLocation = CameraUpdateFactory.newLatLngZoom(MY_POSITION, 15);
-        mMap.addMarker(new MarkerOptions().position(MY_POSITION).icon(BitmapDescriptorFactory.fromResource(R.drawable.here)).title("You are here"));
+        CameraUpdate currentLocation = CameraUpdateFactory.newLatLngZoom(myPosition, 15);
+        mMap.addMarker(new MarkerOptions().position(myPosition).icon(BitmapDescriptorFactory.fromResource(R.drawable.here)).title("You are here"));
         mMap.animateCamera(currentLocation);
 
         mMap.addCircle(new CircleOptions()
-                .center(MY_POSITION)
-                .radius(4000)
+                .center(myPosition)
+                .radius(5000)
                 .strokeColor(Color.GREEN));
     }
 
@@ -131,8 +129,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // `displayLocations` method to be converted to MarkerOptions and
         // added to the map as clickable pins!
         final Map<String,?> parameters = ImmutableMap.of(
-                "here[lat]", MY_POSITION.latitude,
-                "here[lng]", MY_POSITION.longitude);
+                "here[lat]", myPosition.latitude,
+                "here[lng]", myPosition.longitude,
+                "max",3.10686);
 
         repository.invokeStaticMethod(
                 "nearby",
@@ -192,6 +191,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return new MarkerOptions()
                 .position(geoPos)
                 .title(location.getString("name"))
-                .snippet(location.getString("type"));
+                .snippet(getDistanceString(geoPos));
+    }
+
+    @SuppressLint("DefaultLocale")
+    private String getDistanceString(final LatLng position) {
+        final float[] distanceResult = new float[1];
+        Location.distanceBetween(
+                myPosition.latitude, myPosition.longitude,
+                position.latitude, position.longitude,
+                distanceResult);
+        final float distance = distanceResult[0];
+
+        return distance < 1000
+                ? String.format("%dm", Math.round(distance))
+                : String.format("%.1fkm", distance/1000);
     }
 }
