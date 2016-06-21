@@ -48,6 +48,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
     JSONArray parkingResponse;
     SupportMapFragment mapFragment;
+    Polyline polyline;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -218,7 +219,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public boolean onMarkerClick(Marker marker) {
         route(myPosition, marker.getPosition(), "");
-        return true;
+        return false;
     }
 
     protected void route(LatLng sourcePosition, LatLng destPosition, String mode) {
@@ -233,7 +234,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     for (int i = 0; i < directionPoint.size(); i++) {
                         rectLine.add(directionPoint.get(i));
                     }
-                    mMap.addPolyline(rectLine);
+                    if (polyline!= null) polyline.remove();
+                    polyline = mMap.addPolyline(rectLine);
                     md.getDurationText(doc);
                 } catch (Exception e) {
                     e.printStackTrace();
