@@ -32,4 +32,5 @@ dependencies {
     compile 'com.google.android.gms:play-services-maps:9.0.2'
     compile 'com.strongloop:loopback-sdk-android:1.5.+'
     compile 'com.github.quentin7b:android-location-tracker:3.2'
+    compile 'org.apache.httpcomponents:httpcore:4.4.4'
 }

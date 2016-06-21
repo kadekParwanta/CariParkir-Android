@@ -5,6 +5,8 @@ import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
@@ -19,7 +21,10 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.collect.ImmutableMap;
 import com.strongloop.android.loopback.Model;
 import com.strongloop.android.loopback.ModelRepository;
@@ -29,6 +34,7 @@ import com.strongloop.android.remoting.adapters.Adapter;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.w3c.dom.Document;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +42,7 @@ import java.util.Map;
 
 import fr.quentinklein.slt.LocationTracker;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
     private GoogleMap mMap;
     LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
@@ -87,6 +93,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.setOnMarkerClickListener(MapsActivity.this);
 
         Toast.makeText(this,"MapReady",Toast.LENGTH_SHORT).show();
         final List<MarkerOptions> locations = convertLocationsToMarkerOptions(parkingResponse);
@@ -206,5 +213,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return distance < 1000
                 ? String.format("%dm", Math.round(distance))
                 : String.format("%.1fkm", distance/1000);
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        route(myPosition, marker.getPosition(), "");
+        return true;
+    }
+
+    protected void route(LatLng sourcePosition, LatLng destPosition, String mode) {
+        final Handler handler = new Handler() {
+            public void handleMessage(Message msg) {
+                try {
+                    Document doc = (Document) msg.obj;
+                    GMapV2Direction md = new GMapV2Direction();
+                    ArrayList<LatLng> directionPoint = md.getDirection(doc);
+                    PolylineOptions rectLine = new PolylineOptions().width(3).color(Color.RED);
+
+                    for (int i = 0; i < directionPoint.size(); i++) {
+                        rectLine.add(directionPoint.get(i));
+                    }
+                    mMap.addPolyline(rectLine);
+                    md.getDurationText(doc);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            ;
+        };
+
+        new GMapV2DirectionAsyncTask(handler, sourcePosition, destPosition, GMapV2Direction.MODE_DRIVING).execute();
     }
 }
