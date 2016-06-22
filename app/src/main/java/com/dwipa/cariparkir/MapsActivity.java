@@ -58,6 +58,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     LinearLayout bookItContainer;
     Button bookItBtn;
     ArrayList<Parking> parkingList = new ArrayList<>();
+    ArrayList<Marker> markerList = new ArrayList<>();
     Marker selectedMarker;
     TextView availableSlot, totalSlot;
     private Parking selectedParking, bookedParking;
@@ -87,6 +88,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 public void onLocationFound(Location location) {
                     // Do some stuff
                     myPosition = new LatLng(location.getLatitude(),location.getLongitude());
+                    Log.d("LocationTracker", "onLocationFound "+ myPosition.toString());
+                    Toast.makeText(MapsActivity.this,"onLocationFound "+ location.toString(),Toast.LENGTH_SHORT).show();
                     sendRequest();
                 }
 
@@ -122,7 +125,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         // add markers for locations returned by the server
         for (final MarkerOptions loc: locations) {
-            mMap.addMarker(loc);
+            Marker marker = mMap.addMarker(loc);
+            markerList.add(marker);
         }
 
         CameraUpdate currentLocation = CameraUpdateFactory.newLatLngZoom(myPosition, 15);
@@ -290,13 +294,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Toast.makeText(MapsActivity.this,"You have already booked a slot: " + bookedParking.getName(),Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(MapsActivity.this,selectedMarker.getTitle()+" has been Booked",Toast.LENGTH_SHORT).show();
-                hasBookedASlot = true;
-                bookedParking = selectedParking;
+                bookParkingLot(selectedParking, selectedMarker);
             }
 
             bookItContainer.setVisibility(View.GONE);
         }
     };
+
+    private void bookParkingLot(Parking parking, Marker marker) {
+        hasBookedASlot = true;
+        bookedParking = parking;
+
+        for (Marker marker1:markerList) {
+            if (!marker1.getId().equalsIgnoreCase(marker.getId())) marker1.remove();
+        }
+    }
+
+
 
     protected void route(LatLng sourcePosition, LatLng destPosition, String mode) {
         final Handler handler = new Handler() {
