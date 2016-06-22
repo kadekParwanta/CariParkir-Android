@@ -29,7 +29,6 @@ import com.dwipa.cariparkir.Geofence.GeofenceTransitionsIntentService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.Result;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
@@ -42,7 +41,6 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -50,6 +48,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
 import com.strongloop.android.loopback.Model;
 import com.strongloop.android.loopback.ModelRepository;
 import com.strongloop.android.loopback.RestAdapter;
@@ -488,6 +487,7 @@ public class MapDemoActivity extends AppCompatActivity implements
             throws JSONException {
 
         Parking parking = new Parking();
+        parking.setId(location.getString("id"));
         parking.setName(location.getString("name"));
         parking.setType(location.getString("type"));
         parking.setAvailable(location.getInt("available"));
@@ -560,6 +560,14 @@ public class MapDemoActivity extends AppCompatActivity implements
     private void bookParkingLot(Parking parking, Marker marker) {
         hasBookedASlot = true;
         bookedParking = parking;
+
+
+        SharedPreferences.Editor prefsEditor = mSharedPreferences.edit();
+        Gson gson = new Gson();
+        String json = gson.toJson(parking);
+        prefsEditor.putString(Constants.PARKING_SLOT, json);
+        prefsEditor.commit();
+
         route(myPosition, marker.getPosition(), GMapV2Direction.MODE_DRIVING);
         populateGeofenceList(marker);
         addGeofencesButtonHandler();

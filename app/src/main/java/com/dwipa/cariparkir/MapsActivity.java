@@ -231,6 +231,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             throws JSONException {
 
         Parking parking = new Parking();
+        parking.setId(location.getString("id"));
         parking.setName(location.getString("name"));
         parking.setType(location.getString("type"));
         parking.setAvailable(location.getInt("available"));

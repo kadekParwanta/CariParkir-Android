@@ -14,6 +14,7 @@ public class Parking extends Model{
     private int total;
     private String rate;
     private LatLng geo;
+    private String _id;
 
     public String getName() {
         return name;
@@ -63,4 +64,11 @@ public class Parking extends Model{
         this.geo = geo;
     }
 
+    public String getId() {
+        return _id;
+    }
+
+    public void setId(String id) {
+        this._id = id;
+    }
 }

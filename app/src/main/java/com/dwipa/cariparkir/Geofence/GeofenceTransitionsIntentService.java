@@ -20,20 +20,35 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.location.Location;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.dwipa.cariparkir.Constants;
 import com.dwipa.cariparkir.MapDemoActivity;
+import com.dwipa.cariparkir.Parking;
 import com.dwipa.cariparkir.R;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
+import com.google.gson.Gson;
 
+import org.w3c.dom.Document;
+
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
  * Listener for geofence transition changes.
@@ -94,6 +109,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
             // Send notification and log the transition details.
             sendNotification(geofenceTransitionDetails);
+            updateParkingService(geofenceTransition);
             Log.i(TAG, geofenceTransitionDetails);
         } else {
             // Log the error.
@@ -121,7 +137,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         for (Geofence geofence : triggeringGeofences) {
             triggeringGeofencesIdsList.add(geofence.getRequestId());
         }
-        String triggeringGeofencesIdsString = TextUtils.join(", ",  triggeringGeofencesIdsList);
+        String triggeringGeofencesIdsString = TextUtils.join(", ", triggeringGeofencesIdsList);
 
         return geofenceTransitionString + ": " + triggeringGeofencesIdsString;
     }
@@ -186,6 +202,56 @@ public class GeofenceTransitionsIntentService extends IntentService {
                 return getString(R.string.geofence_transition_exited);
             default:
                 return getString(R.string.unknown_geofence_transition);
+        }
+    }
+
+    private void updateParkingService(int trasitionType) {
+
+        SharedPreferences sharedpref = getSharedPreferences(Constants.SHARED_PREFERENCES_NAME,
+                MODE_PRIVATE);
+
+        Gson gson = new Gson();
+        String json = sharedpref.getString(Constants.PARKING_SLOT, "");
+        Parking parking = gson.fromJson(json, Parking.class);
+
+        String stringUrl = "https://cariparkir.herokuapp.com/api/parkings/"+parking.getId();
+        Log.d("url", stringUrl);
+        try {
+
+            URL url = new URL(stringUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setReadTimeout(10000);
+            conn.setConnectTimeout(15000);
+            conn.setDoInput(true);
+            conn.setDoOutput(true);
+            conn.setRequestMethod("PUT");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Accept", "application/json");
+
+            String str;
+            if (trasitionType == Geofence.GEOFENCE_TRANSITION_ENTER) {
+                str =  "{\"available\":"+ (parking.getAvailable() - 1) + "}";
+            } else {
+                str =  "{\"available\":"+ parking.getAvailable() + "}";
+            }
+
+            byte[] outputInBytes = str.getBytes("UTF-8");
+            OutputStream os = conn.getOutputStream();
+            os.write(outputInBytes);
+            os.close();
+
+            conn.connect();
+
+            int statusCode = conn.getResponseCode();
+
+        /* 200 represents HTTP OK */
+            if (statusCode == 200) {
+                Log.d("GeofenceService","update parking lot - succeed");
+            } else {
+                Log.e("GeofenceService", "update parking lot - failed");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
