@@ -246,7 +246,14 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         /* 200 represents HTTP OK */
             if (statusCode == 200) {
-                Log.d("GeofenceService","update parking lot - succeed");
+                Log.d("GeofenceService", "update parking lot - succeed");
+
+                if (trasitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
+                    SharedPreferences.Editor editor = sharedpref.edit();
+                    editor.putBoolean(Constants.PARKING_SLOT_EXIT, true);
+                    editor.apply();
+                }
+
             } else {
                 Log.e("GeofenceService", "update parking lot - failed");
             }

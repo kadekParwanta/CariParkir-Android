@@ -34,6 +34,7 @@ public final class Constants {
     public static final String GEOFENCES_ADDED_KEY = PACKAGE_NAME + ".GEOFENCES_ADDED_KEY";
 
     public static final String PARKING_SLOT = PACKAGE_NAME + ".PARKING_SLOT";
+    public static final String PARKING_SLOT_EXIT = PACKAGE_NAME + ".PARKING_SLOT_EXIT";
 
     /**
      * Used to set an expiration time for a geofence. After this amount of time Location Services

@@ -154,6 +154,12 @@ public class MapDemoActivity extends AppCompatActivity implements
 
         // Get the value of mGeofencesAdded from SharedPreferences. Set to false as a default.
         mGeofencesAdded = mSharedPreferences.getBoolean(Constants.GEOFENCES_ADDED_KEY, false);
+
+        Boolean isExited = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_EXIT, false);
+        if (isExited) {
+            removeGeofencesButtonHandler();
+            hasBookedASlot = false;
+        }
     }
 
     protected void loadMap(GoogleMap googleMap) {
@@ -162,10 +168,18 @@ public class MapDemoActivity extends AppCompatActivity implements
             // Map is ready
             Toast.makeText(this, "Map Fragment was loaded properly!", Toast.LENGTH_SHORT).show();
             MapDemoActivityPermissionsDispatcher.getMyLocationWithCheck(this);
+            mMap.setOnMapClickListener(mapClickListener);
         } else {
             Toast.makeText(this, "Error - Map was null!!", Toast.LENGTH_SHORT).show();
         }
     }
+
+    private GoogleMap.OnMapClickListener mapClickListener = new GoogleMap.OnMapClickListener() {
+        @Override
+        public void onMapClick(LatLng latLng) {
+            if (bookItContainer.getVisibility() == View.VISIBLE) bookItContainer.setVisibility(View.GONE);
+        }
+    };
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -320,6 +334,13 @@ public class MapDemoActivity extends AppCompatActivity implements
                 Double.toString(location.getLongitude());
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
 
+        Boolean isExited = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_EXIT, false);
+        if (isExited && hasBookedASlot) {
+            removeGeofencesButtonHandler();
+            hasBookedASlot = false;
+            mSharedPreferences.edit().putBoolean(Constants.PARKING_SLOT_EXIT, false);
+            mSharedPreferences.edit().commit();
+        }
 
         if (location.distanceTo(prevLocation) > 10 && hasBookedASlot) {
             showResult("update route");
@@ -651,7 +672,7 @@ public class MapDemoActivity extends AppCompatActivity implements
      * Removes geofences, which stops further notifications when the device enters or exits
      * previously registered geofences.
      */
-    public void removeGeofencesButtonHandler(View view) {
+    public void removeGeofencesButtonHandler() {
         if (!mGoogleApiClient.isConnected()) {
             Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show();
             return;
