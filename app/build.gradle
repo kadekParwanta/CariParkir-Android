@@ -25,6 +25,8 @@ repositories {
     }
 }
 
+apply plugin: 'android-apt'
+
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
@@ -33,4 +35,7 @@ dependencies {
     compile 'com.strongloop:loopback-sdk-android:1.5.+'
     compile 'com.github.quentin7b:android-location-tracker:3.2'
     compile 'org.apache.httpcomponents:httpcore:4.4.4'
+    compile 'com.google.android.gms:play-services-location:9.0.2'
+    compile 'com.github.hotchemi:permissionsdispatcher:2.0.7'
+    apt 'com.github.hotchemi:permissionsdispatcher-processor:2.0.7'
 }
