@@ -11,6 +11,10 @@ import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdate;
@@ -49,6 +53,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     JSONArray parkingResponse;
     SupportMapFragment mapFragment;
     Polyline polyline;
+    private float KMtoMile = 0.000621371f;
+    private float defaultMaxRadius = 2000; //in m
+    LinearLayout bookItContainer;
+    Button bookItBtn;
+    ArrayList<Parking> parkingList = new ArrayList<>();
+    Marker selectedMarker;
+    TextView availableSlot, totalSlot;
+    private Parking selectedParking, bookedParking;
+    private Boolean hasBookedASlot = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +70,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
+        bookItContainer = (LinearLayout) findViewById(R.id.bookContainer);
+        bookItBtn = (Button) findViewById(R.id.bookItBtn);
+        bookItBtn.setOnClickListener(onBookItClickListener);
+
+        availableSlot = (TextView) findViewById(R.id.availableSlot);
+        totalSlot = (TextView) findViewById(R.id.totalSlot);
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -112,7 +131,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mMap.addCircle(new CircleOptions()
                 .center(myPosition)
-                .radius(5000)
+                .radius(defaultMaxRadius)
                 .strokeColor(Color.GREEN));
     }
 
@@ -139,7 +158,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         final Map<String,?> parameters = ImmutableMap.of(
                 "here[lat]", myPosition.latitude,
                 "here[lng]", myPosition.longitude,
-                "max",3.10686);
+                "max",defaultMaxRadius*KMtoMile);
 
         repository.invokeStaticMethod(
                 "nearby",
@@ -147,6 +166,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 new Adapter.JsonArrayCallback() {
                     @Override
                     public void onSuccess(final JSONArray response) {
+                        parkingList.clear();
                         displayLocations(response);
                     }
 
@@ -181,6 +201,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             try {
                 final JSONObject loc = locations.getJSONObject(ix);
                 result.add(createMarkerOptionsForLocation(loc));
+                parkingList.add(createParkingFromLocation(loc));
             } catch (final JSONException e) {
                 Log.w("LessonThreeFragment", "Skipping invalid location object.", e);
             }
@@ -202,6 +223,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .snippet(getDistanceString(geoPos));
     }
 
+    private Parking createParkingFromLocation(final JSONObject location)
+            throws JSONException {
+
+        Parking parking = new Parking();
+        parking.setName(location.getString("name"));
+        parking.setType(location.getString("type"));
+        parking.setAvailable(location.getInt("available"));
+        parking.setTotal(location.getInt("total"));
+
+        final JSONObject posJson = location.getJSONObject("geo");
+        final LatLng geoPos = new LatLng(
+                posJson.getDouble("lat"),
+                posJson.getDouble("lng"));
+        parking.setGeo(geoPos);
+
+        return parking;
+    }
+
     @SuppressLint("DefaultLocale")
     private String getDistanceString(final LatLng position) {
         final float[] distanceResult = new float[1];
@@ -219,8 +258,45 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public boolean onMarkerClick(Marker marker) {
         route(myPosition, marker.getPosition(), "");
+        bookItContainer.setVisibility(View.VISIBLE);
+
+        selectedMarker = marker;
+        selectedParking = findByMarker(marker);
+
+        if (selectedParking != null) {
+            availableSlot.setText("Available: " + selectedParking.getAvailable());
+            totalSlot.setText("Total: " + selectedParking.getTotal());
+        } else {
+            availableSlot.setText("Available: N/A" );
+            totalSlot.setText("Total: N/A");
+        }
+
         return false;
     }
+
+    private Parking findByMarker(Marker marker) {
+        for (Parking parking : parkingList) {
+            if (parking.getName().equalsIgnoreCase(marker.getTitle())){
+                return parking;
+            }
+        }
+        return null;
+    }
+
+    private View.OnClickListener onBookItClickListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View view) {
+            if (hasBookedASlot) {
+                Toast.makeText(MapsActivity.this,"You have already booked a slot: " + bookedParking.getName(),Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(MapsActivity.this,selectedMarker.getTitle()+" has been Booked",Toast.LENGTH_SHORT).show();
+                hasBookedASlot = true;
+                bookedParking = selectedParking;
+            }
+
+            bookItContainer.setVisibility(View.GONE);
+        }
+    };
 
     protected void route(LatLng sourcePosition, LatLng destPosition, String mode) {
         final Handler handler = new Handler() {
