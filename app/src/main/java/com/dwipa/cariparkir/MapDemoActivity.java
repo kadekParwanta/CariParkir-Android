@@ -154,12 +154,6 @@ public class MapDemoActivity extends AppCompatActivity implements
 
         // Get the value of mGeofencesAdded from SharedPreferences. Set to false as a default.
         mGeofencesAdded = mSharedPreferences.getBoolean(Constants.GEOFENCES_ADDED_KEY, false);
-
-        Boolean isExited = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_EXIT, false);
-        if (isExited) {
-            removeGeofencesButtonHandler();
-            hasBookedASlot = false;
-        }
     }
 
     protected void loadMap(GoogleMap googleMap) {
@@ -340,6 +334,7 @@ public class MapDemoActivity extends AppCompatActivity implements
             hasBookedASlot = false;
             mSharedPreferences.edit().putBoolean(Constants.PARKING_SLOT_EXIT, false);
             mSharedPreferences.edit().commit();
+            removeGeofencesButtonHandler();
         }
 
         if (location.distanceTo(prevLocation) > 10 && hasBookedASlot) {
