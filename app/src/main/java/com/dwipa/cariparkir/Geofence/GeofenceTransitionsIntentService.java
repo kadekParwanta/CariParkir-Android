@@ -232,6 +232,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
             if (trasitionType == Geofence.GEOFENCE_TRANSITION_ENTER) {
                 str =  "{\"available\":"+ (parking.getAvailable() - 1) + "}";
             } else {
+                //TODO need to check the real availability
                 str =  "{\"available\":"+ parking.getAvailable() + "}";
             }
 
@@ -246,13 +247,15 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         /* 200 represents HTTP OK */
             if (statusCode == 200) {
-                Log.d("GeofenceService", "update parking lot - succeed");
-
+                SharedPreferences.Editor editor = sharedpref.edit();
                 if (trasitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-                    SharedPreferences.Editor editor = sharedpref.edit();
                     editor.putBoolean(Constants.PARKING_SLOT_EXIT, true);
-                    editor.apply();
+                } else {
+                    editor.putBoolean(Constants.PARKING_SLOT_ENTER, true);
                 }
+
+                editor.commit();
+
 
             } else {
                 Log.e("GeofenceService", "update parking lot - failed");

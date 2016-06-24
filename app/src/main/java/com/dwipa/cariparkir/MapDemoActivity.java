@@ -11,9 +11,8 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v7.app.AppCompatActivity;
@@ -41,6 +40,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -59,9 +59,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import permissions.dispatcher.NeedsPermission;
 import permissions.dispatcher.RuntimePermissions;
@@ -118,6 +124,7 @@ public class MapDemoActivity extends AppCompatActivity implements
      * returned in Activity.onActivityResult
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
+    private Circle geofenceCircle;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -329,19 +336,21 @@ public class MapDemoActivity extends AppCompatActivity implements
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
 
         Boolean isExited = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_EXIT, false);
+        Boolean isEntered = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_ENTER, false);
+
         if (isExited && hasBookedASlot) {
-            removeGeofencesButtonHandler();
             hasBookedASlot = false;
-            mSharedPreferences.edit().putBoolean(Constants.PARKING_SLOT_EXIT, false);
-            mSharedPreferences.edit().commit();
+            SharedPreferences.Editor editor = mSharedPreferences.edit();
+            editor.putBoolean(Constants.PARKING_SLOT_EXIT, false);
+            editor.putBoolean(Constants.PARKING_SLOT_ENTER, false);
+            editor.commit();
             removeGeofencesButtonHandler();
         }
 
-        if (location.distanceTo(prevLocation) > 10 && hasBookedASlot) {
-            showResult("update route");
+        if (location.distanceTo(prevLocation) > 10 && hasBookedASlot && !isEntered) {
             prevLocation = location;
-            route(new LatLng(location.getLatitude(), location.getLongitude()),
-                    selectedMarker.getPosition(), GMapV2Direction.MODE_DRIVING);
+            new GetDirectionTask(new LatLng(location.getLatitude(), location.getLongitude()),
+                    selectedMarker.getPosition(), GMapV2Direction.MODE_DRIVING).execute();
         }
 
     }
@@ -584,37 +593,67 @@ public class MapDemoActivity extends AppCompatActivity implements
         prefsEditor.putString(Constants.PARKING_SLOT, json);
         prefsEditor.commit();
 
-        route(myPosition, marker.getPosition(), GMapV2Direction.MODE_DRIVING);
+        new GetDirectionTask(myPosition, marker.getPosition(), GMapV2Direction.MODE_DRIVING).execute();
         populateGeofenceList(marker);
         addGeofencesButtonHandler();
     }
 
+    public class GetDirectionTask extends AsyncTask<Void, Void,Document> {
+        private LatLng start, end;
+        private String mode;
 
+        public GetDirectionTask(LatLng start, LatLng end, String mode) {
+            this.start = start;
+            this.end = end;
+            this.mode = mode;
+        }
 
-    protected void route(LatLng sourcePosition, LatLng destPosition, String mode) {
-        final Handler handler = new Handler() {
-            public void handleMessage(Message msg) {
-                try {
-                    Document doc = (Document) msg.obj;
-                    GMapV2Direction md = new GMapV2Direction();
-                    ArrayList<LatLng> directionPoint = md.getDirection(doc);
-                    PolylineOptions rectLine = new PolylineOptions().width(3).color(Color.RED);
+        @Override
+        protected Document doInBackground(Void... voids) {
+            String stringUrl = "http://maps.googleapis.com/maps/api/directions/xml?"
+                    + "origin=" + start.latitude + "," + start.longitude
+                    + "&destination=" + end.latitude + "," + end.longitude
+                    + "&sensor=false&units=metric&mode=" + mode;
+            Log.d("url", stringUrl);
+            try {
+                URL url = new URL(stringUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setReadTimeout(10000);
+                conn.setConnectTimeout(15000);
+                conn.setDoInput(true);
+                conn.setDoOutput(true);
+                conn.setRequestMethod("POST");
+                conn.connect();
 
-                    for (int i = 0; i < directionPoint.size(); i++) {
-                        rectLine.add(directionPoint.get(i));
-                    }
-                    if (polyline!= null) polyline.remove();
-                    polyline = mMap.addPolyline(rectLine);
-                    md.getDurationText(doc);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                InputStream in = (InputStream) conn.getContent();
+                DocumentBuilder builder = DocumentBuilderFactory.newInstance()
+                        .newDocumentBuilder();
+                Document doc = builder.parse(in);
+                return doc;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+            return null;
+        }
 
-            ;
-        };
+        @Override
+        protected void onPostExecute(Document document) {
+            super.onPostExecute(document);
+            try {
+                GMapV2Direction md = new GMapV2Direction();
+                ArrayList<LatLng> directionPoint = md.getDirection(document);
+                PolylineOptions rectLine = new PolylineOptions().width(3).color(Color.RED);
 
-        new GMapV2DirectionAsyncTask(handler, sourcePosition, destPosition, mode).execute();
+                for (int i = 0; i < directionPoint.size(); i++) {
+                    rectLine.add(directionPoint.get(i));
+                }
+                if (polyline!= null) polyline.remove();
+                polyline = mMap.addPolyline(rectLine);
+                md.getDurationText(document);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 
@@ -716,6 +755,15 @@ public class MapDemoActivity extends AppCompatActivity implements
                             R.string.geofences_removed),
                     Toast.LENGTH_SHORT
             ).show();
+
+            if (mGeofencesAdded) {
+                geofenceCircle = mMap.addCircle(new CircleOptions()
+                        .center(selectedMarker.getPosition())
+                        .radius(Constants.GEOFENCE_RADIUS_IN_METERS)
+                        .strokeColor(Color.BLUE));
+            } else {
+                if (geofenceCircle != null) geofenceCircle.remove();
+            }
         } else {
             // Get the status code for the error and log it using a user-friendly message.
             String errorMessage = GeofenceErrorMessages.getErrorString(this,

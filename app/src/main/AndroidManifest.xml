@@ -55,8 +55,6 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MapsActivity" android:label="Map Demo"></activity>
-
         <service android:name=".Geofence.GeofenceTransitionsIntentService" />
     </application>
 
