@@ -247,6 +247,17 @@ public class MapDemoActivity extends AppCompatActivity implements
         selectedParking = parking;
         if (bookItContainer.getVisibility() == View.VISIBLE) {
             availableSlot.setText("Available: " + selectedParking.getAvailable());
+            totalSlot.setText("Total: " + selectedParking.getTotal());
+            if (selectedParking.getAvailable() == 0) {
+                ((TextView) availableSlot.getChildAt(0)).setTextColor(Color.RED);
+                bookItBtn.setOnClickListener(null);
+                bookItBtn.setText("Full!");
+                bookItBtn.setBackgroundColor(Color.RED);
+            } else {
+                bookItBtn.setOnClickListener(onBookItClickListener);
+                bookItBtn.setText("Book it");
+                bookItBtn.setBackgroundColor(Color.parseColor("#ff669900"));
+            }
         }
         bounceTheMarker();
     }
@@ -637,8 +648,7 @@ public class MapDemoActivity extends AppCompatActivity implements
         selectedParking = findByMarker(marker);
 
         if (selectedParking != null) {
-            availableSlot.setText("Available: " + selectedParking.getAvailable());
-            totalSlot.setText("Total: " + selectedParking.getTotal());
+            updateSelectedParking(selectedParking);
         } else {
             availableSlot.setText("Available: N/A" );
             totalSlot.setText("Total: N/A");
