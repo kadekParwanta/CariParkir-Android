@@ -10,21 +10,34 @@ import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.graphics.Typeface;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.view.animation.BounceInterpolator;
+import android.view.animation.Interpolator;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.TextSwitcher;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ViewSwitcher;
 
 import com.dwipa.cariparkir.Geofence.GeofenceErrorMessages;
 import com.dwipa.cariparkir.Geofence.GeofenceTransitionsIntentService;
+import com.github.nkzawa.emitter.Emitter;
+import com.github.nkzawa.socketio.client.IO;
+import com.github.nkzawa.socketio.client.Socket;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -39,6 +52,7 @@ import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
@@ -61,6 +75,7 @@ import org.w3c.dom.Document;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -98,7 +113,8 @@ public class MapDemoActivity extends AppCompatActivity implements
     ArrayList<Parking> parkingList = new ArrayList<>();
     ArrayList<Marker> markerList = new ArrayList<>();
     Marker selectedMarker;
-    TextView availableSlot, totalSlot;
+    TextSwitcher availableSlot;
+    TextView totalSlot;
     private Parking selectedParking, bookedParking;
     private Boolean hasBookedASlot = false;
     LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
@@ -134,8 +150,29 @@ public class MapDemoActivity extends AppCompatActivity implements
         bookItBtn = (Button) findViewById(R.id.bookItBtn);
         bookItBtn.setOnClickListener(onBookItClickListener);
 
-        availableSlot = (TextView) findViewById(R.id.availableSlot);
+        availableSlot = (TextSwitcher) findViewById(R.id.availableSlot);
         totalSlot = (TextView) findViewById(R.id.totalSlot);
+
+        // Set the ViewFactory of the TextSwitcher that will create TextView object when asked
+        availableSlot.setFactory(new ViewSwitcher.ViewFactory() {
+
+            public View makeView() {
+                // TODO Auto-generated method stub
+                // create new textView and set the properties like clolr, size etc
+                TextView myText = new TextView(MapDemoActivity.this);
+                myText.setTextColor(Color.parseColor("#ff669900"));
+                myText.setTypeface(null, Typeface.BOLD);
+                return myText;
+            }
+        });
+
+        // Declare the in and out animations and initialize them
+        Animation in = AnimationUtils.loadAnimation(this,android.R.anim.slide_in_left);
+        Animation out = AnimationUtils.loadAnimation(this, android.R.anim.slide_out_right);
+
+        // set the animation type of textSwitcher
+        availableSlot.setInAnimation(in);
+        availableSlot.setOutAnimation(out);
 
         mapFragment = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map));
         if (mapFragment != null) {
@@ -161,6 +198,57 @@ public class MapDemoActivity extends AppCompatActivity implements
 
         // Get the value of mGeofencesAdded from SharedPreferences. Set to false as a default.
         mGeofencesAdded = mSharedPreferences.getBoolean(Constants.GEOFENCES_ADDED_KEY, false);
+
+        //Socket io
+        mSocket.on("/Parking/PUT", onParkingUpdate);
+        mSocket.connect();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        mSocket.disconnect();
+        mSocket.off("/Parking/PUT", onParkingUpdate);
+    }
+
+    private Socket mSocket;
+    {
+        try {
+            mSocket = IO.socket("https://cariparkir.herokuapp.com");
+        } catch (URISyntaxException e) {}
+    }
+
+    private Emitter.Listener onParkingUpdate = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    JSONObject data = (JSONObject) args[0];
+                    try {
+                        Parking parking = createParkingFromLocation(data);
+                        Parking parkingOld = findParking(parking);
+                        if (parkingOld != null) {
+                            if (parking.getId().equals(selectedParking.getId())) updateSelectedParking(parking);
+                            int index = getIndex(parkingOld);
+                            parkingList.set(index, parking);
+                        }
+                    } catch (JSONException e) {
+                        return;
+                    }
+
+                }
+            });
+        }
+    };
+
+    private void updateSelectedParking(Parking parking) {
+        selectedParking = parking;
+        if (bookItContainer.getVisibility() == View.VISIBLE) {
+            availableSlot.setText("Available: " + selectedParking.getAvailable());
+        }
+        bounceTheMarker();
     }
 
     protected void loadMap(GoogleMap googleMap) {
@@ -568,6 +656,28 @@ public class MapDemoActivity extends AppCompatActivity implements
         return null;
     }
 
+    private Parking findParking(Parking parking) {
+        for (Parking parkingLot : parkingList) {
+            if (parking.getId().equalsIgnoreCase(parkingLot.getId())){
+                return parking;
+            }
+        }
+        return null;
+    }
+
+    public int getIndex(Parking parking)
+    {
+        for (int i = 0; i < parkingList.size(); i++)
+        {
+            Parking item = parkingList.get(i);
+            if (item.getId().equals(parking.getId())) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private View.OnClickListener onBookItClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View view) {
@@ -815,6 +925,37 @@ public class MapDemoActivity extends AppCompatActivity implements
 
                         // Create the geofence.
                 .build());
+    }
+
+    private void bounceTheMarker() {
+        final Handler handler = new Handler();
+
+        final long startTime = SystemClock.uptimeMillis();
+        final long duration = 2000;
+
+        Projection proj = mMap.getProjection();
+        final LatLng markerLatLng = selectedMarker.getPosition();
+        Point startPoint = proj.toScreenLocation(markerLatLng);
+        startPoint.offset(0, -100);
+        final LatLng startLatLng = proj.fromScreenLocation(startPoint);
+
+        final Interpolator interpolator = new BounceInterpolator();
+
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = SystemClock.uptimeMillis() - startTime;
+                float t = interpolator.getInterpolation((float) elapsed / duration);
+                double lng = t * markerLatLng.longitude + (1 - t) * startLatLng.longitude;
+                double lat = t * markerLatLng.latitude + (1 - t) * startLatLng.latitude;
+                selectedMarker.setPosition(new LatLng(lat, lng));
+
+                if (t < 1.0) {
+                    // Post again 16ms later.
+                    handler.postDelayed(this, 16);
+                }
+            }
+        });
     }
 
 }

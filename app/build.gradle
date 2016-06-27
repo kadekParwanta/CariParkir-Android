@@ -39,4 +39,5 @@ dependencies {
     compile 'com.github.hotchemi:permissionsdispatcher:2.0.7'
     apt 'com.github.hotchemi:permissionsdispatcher-processor:2.0.7'
     compile 'com.google.code.gson:gson:2.7'
+    compile 'com.github.nkzawa:socket.io-client:0.3.0'
 }
