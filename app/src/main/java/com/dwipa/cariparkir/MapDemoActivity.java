@@ -443,6 +443,7 @@ public class MapDemoActivity extends AppCompatActivity implements
             editor.putBoolean(Constants.PARKING_SLOT_ENTER, false);
             editor.commit();
             removeGeofencesButtonHandler();
+            if (polyline!= null) polyline.remove();
         }
 
         if (location.distanceTo(prevLocation) > 10 && hasBookedASlot && !isEntered) {
