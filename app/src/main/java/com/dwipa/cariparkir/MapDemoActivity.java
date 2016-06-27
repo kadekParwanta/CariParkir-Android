@@ -249,7 +249,6 @@ public class MapDemoActivity extends AppCompatActivity implements
             availableSlot.setText("Available: " + selectedParking.getAvailable());
             totalSlot.setText("Total: " + selectedParking.getTotal());
             if (selectedParking.getAvailable() == 0) {
-                ((TextView) availableSlot.getChildAt(0)).setTextColor(Color.RED);
                 bookItBtn.setOnClickListener(null);
                 bookItBtn.setText("Full!");
                 bookItBtn.setBackgroundColor(Color.RED);
