@@ -17,10 +17,16 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.preference.PreferenceManager;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -529,6 +535,9 @@ public class MapDemoActivity extends AppCompatActivity implements
     }
 
     private void sendRequest() {
+        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(this);
+        String radius = settings.getString("radius_list", "500");
+        defaultMaxRadius = Integer.parseInt(radius);
         final CariParkirApplication app = (CariParkirApplication)getApplication();
         final RestAdapter adapter = app.getLoopBackAdapter();
         final ModelRepository<Model> repository = adapter.createRepository("parking");
@@ -981,4 +990,29 @@ public class MapDemoActivity extends AppCompatActivity implements
         });
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater menuInflater = getMenuInflater();
+        menuInflater.inflate(R.menu.setting, menu);
+
+        // Calling super after populating the menu is necessary here to ensure that the
+        // action bar helpers have a chance to handle this event.
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_settings:
+                // User chose the "Settings" item, show the app settings UI...
+                startActivity(new Intent(MapDemoActivity.this,SettingsActivity.class));
+                return true;
+
+            default:
+                // If we got here, the user's action was not recognized.
+                // Invoke the superclass to handle it.
+                return super.onOptionsItemSelected(item);
+
+        }
+    }
 }
