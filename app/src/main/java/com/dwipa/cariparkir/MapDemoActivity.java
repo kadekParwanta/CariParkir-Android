@@ -429,11 +429,8 @@ public class MapDemoActivity extends AppCompatActivity implements
     }
 
     public void onLocationChanged(Location location) {
-        // Report to the UI that the location was updated
-        String msg = "Updated Location: " +
-                Double.toString(location.getLatitude()) + "," +
-                Double.toString(location.getLongitude());
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        if (location == null) return;
+        myPosition = new LatLng(location.getLatitude(),location.getLongitude());
 
         Boolean isExited = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_EXIT, false);
         Boolean isEntered = mSharedPreferences.getBoolean(Constants.PARKING_SLOT_ENTER, false);
@@ -456,6 +453,13 @@ public class MapDemoActivity extends AppCompatActivity implements
                     selectedMarker.getPosition(), GMapV2Direction.MODE_DRIVING).execute();
         }
 
+        if (hasBookedASlot) updateCamera(location);
+    }
+
+    private void updateCamera(Location location) {
+        LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(latLng, 17);
+        mMap.animateCamera(cameraUpdate);
     }
 
     /*
@@ -550,7 +554,7 @@ public class MapDemoActivity extends AppCompatActivity implements
                         showResult("Failed. Retry..");
                         while (tryCount < maxRetry) {
                             sendRequest();
-                            tryCount ++;
+                            tryCount++;
                         }
                     }
                 });
@@ -771,7 +775,7 @@ public class MapDemoActivity extends AppCompatActivity implements
             try {
                 GMapV2Direction md = new GMapV2Direction();
                 ArrayList<LatLng> directionPoint = md.getDirection(document);
-                PolylineOptions rectLine = new PolylineOptions().width(3).color(Color.RED);
+                PolylineOptions rectLine = new PolylineOptions().width(10).color(Color.RED);
 
                 for (int i = 0; i < directionPoint.size(); i++) {
                     rectLine.add(directionPoint.get(i));
