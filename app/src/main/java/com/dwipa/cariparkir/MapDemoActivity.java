@@ -119,6 +119,7 @@ public class MapDemoActivity extends AppCompatActivity implements
     private Boolean hasBookedASlot = false;
     LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
     Location prevLocation;
+    Integer maxRetry = 5;
     /**
      * Used to keep track of whether geofences were added.
      */
@@ -141,6 +142,7 @@ public class MapDemoActivity extends AppCompatActivity implements
      */
     private final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
     private Circle geofenceCircle;
+    private int tryCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -230,7 +232,7 @@ public class MapDemoActivity extends AppCompatActivity implements
                         Parking parking = createParkingFromLocation(data);
                         Parking parkingOld = findParking(parking);
                         if (parkingOld != null) {
-                            if (parking.getId().equals(selectedParking.getId())) updateSelectedParking(parking);
+                            if (selectedParking != null && parking.getId().equals(selectedParking.getId())) updateSelectedParking(parking);
                             int index = getIndex(parkingOld);
                             parkingList.set(index, parking);
                         }
@@ -446,6 +448,8 @@ public class MapDemoActivity extends AppCompatActivity implements
             if (polyline!= null) polyline.remove();
         }
 
+        if (prevLocation == null) prevLocation = location;
+
         if (location.distanceTo(prevLocation) > 10 && hasBookedASlot && !isEntered) {
             prevLocation = location;
             new GetDirectionTask(new LatLng(location.getLatitude(), location.getLongitude()),
@@ -537,12 +541,17 @@ public class MapDemoActivity extends AppCompatActivity implements
                     public void onSuccess(final JSONArray response) {
                         parkingList.clear();
                         displayLocations(response);
+                        tryCount = 0;
                     }
 
                     @Override
                     public void onError(final Throwable t) {
                         Log.e("MapsActivity", "Cannot list locations.", t);
-                        showResult("Failed.");
+                        showResult("Failed. Retry..");
+                        while (tryCount < maxRetry) {
+                            sendRequest();
+                            tryCount ++;
+                        }
                     }
                 });
     }
