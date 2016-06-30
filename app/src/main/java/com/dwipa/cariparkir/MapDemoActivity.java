@@ -228,6 +228,8 @@ public class MapDemoActivity extends AppCompatActivity implements
 
         //Socket io
         mSocket.on("/Parking/PUT", onParkingUpdate);
+        mSocket.on("/Parking/POST", onParkingCreated);
+
         mSocket.connect();
     }
 
@@ -237,6 +239,7 @@ public class MapDemoActivity extends AppCompatActivity implements
 
         mSocket.disconnect();
         mSocket.off("/Parking/PUT", onParkingUpdate);
+        mSocket.off("/Parking/POST", onParkingCreated);
     }
 
     private Socket mSocket;
@@ -270,6 +273,44 @@ public class MapDemoActivity extends AppCompatActivity implements
         }
     };
 
+    private Emitter.Listener onParkingCreated = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+
+                    JSONObject data = (JSONObject) args[0];
+                    try {
+                        Parking parking = createParkingFromLocation(data);
+                        SharedPreferences settings = PreferenceManager.getDefaultSharedPreferences(MapDemoActivity.this);
+                        String radius = settings.getString("radius_list", "500");
+                        int radiusInt = Integer.parseInt(radius);
+                        int currentRadius = (Integer) Math.round(getDistance(parking.getGeo()));
+                        if (currentRadius < radiusInt) {
+                            Parking parkingOld = findParking(parking);
+                            if (parkingOld == null) {
+                                createMarker(parking.getName(), parking.getGeo());
+                            }
+                        }
+                    } catch (JSONException e) {
+                        return;
+                    }
+
+                }
+            });
+        }
+
+        private float getDistance(LatLng position) {
+            final float[] distanceResult = new float[1];
+            Location.distanceBetween(
+                    myPosition.latitude, myPosition.longitude,
+                    position.latitude, position.longitude,
+                    distanceResult);
+            return distanceResult[0];
+        }
+    };
+
     private void updateSelectedParking(Parking parking) {
         selectedParking = parking;
         if (bookItContainer.getVisibility() == View.VISIBLE) {
@@ -285,7 +326,7 @@ public class MapDemoActivity extends AppCompatActivity implements
                 bookItBtn.setBackgroundColor(Color.parseColor("#ff669900"));
             }
         }
-        bounceTheMarker();
+        bounceTheMarker(selectedMarker);
     }
 
     protected void loadMap(GoogleMap googleMap) {
@@ -628,7 +669,9 @@ public class MapDemoActivity extends AppCompatActivity implements
                 .title(name)
                 .snippet(getDistanceString(position));
 
-        mMap.addMarker(markerOptions);
+        Marker marker = mMap.addMarker(markerOptions);
+        markerList.add(marker);
+        bounceTheMarker(marker);
     }
 
     @Override
@@ -1086,7 +1129,7 @@ public class MapDemoActivity extends AppCompatActivity implements
                 .build());
     }
 
-    private void bounceTheMarker() {
+    private void bounceTheMarker(final Marker selectedMarker) {
         final Handler handler = new Handler();
 
         final long startTime = SystemClock.uptimeMillis();
