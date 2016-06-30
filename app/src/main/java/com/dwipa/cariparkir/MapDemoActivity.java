@@ -33,6 +33,7 @@ import android.view.animation.AnimationUtils;
 import android.view.animation.BounceInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextSwitcher;
 import android.widget.TextView;
@@ -69,24 +70,39 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.strongloop.android.loopback.Model;
 import com.strongloop.android.loopback.ModelRepository;
 import com.strongloop.android.loopback.RestAdapter;
+import com.strongloop.android.loopback.callbacks.VoidCallback;
 import com.strongloop.android.remoting.adapters.Adapter;
 
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.w3c.dom.Document;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.HttpsURLConnection;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -101,6 +117,8 @@ public class MapDemoActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         GoogleMap.OnMarkerClickListener,
+        GoogleMap.OnMapLongClickListener,
+        AddParkingFragment.AddParkingListener,
         ResultCallback<Status>,
         LocationListener {
 
@@ -126,6 +144,7 @@ public class MapDemoActivity extends AppCompatActivity implements
     LatLng myPosition = new LatLng(-8.6757927, 115.2137193);
     Location prevLocation;
     Integer maxRetry = 5;
+    LatLng newParkingPos;
     /**
      * Used to keep track of whether geofences were added.
      */
@@ -276,6 +295,7 @@ public class MapDemoActivity extends AppCompatActivity implements
             Toast.makeText(this, "Map Fragment was loaded properly!", Toast.LENGTH_SHORT).show();
             MapDemoActivityPermissionsDispatcher.getMyLocationWithCheck(this);
             mMap.setOnMapClickListener(mapClickListener);
+            mMap.setOnMapLongClickListener(this);
         } else {
             Toast.makeText(this, "Error - Map was null!!", Toast.LENGTH_SHORT).show();
         }
@@ -508,6 +528,113 @@ public class MapDemoActivity extends AppCompatActivity implements
             Toast.makeText(getApplicationContext(),
                     "Sorry. Location services not available to you", Toast.LENGTH_LONG).show();
         }
+    }
+
+    public void showAddParkingDialog() {
+        // Create an instance of the dialog fragment and show it
+        DialogFragment dialog = new AddParkingFragment();
+        dialog.show(getSupportFragmentManager(), "AddParkingFragment");
+    }
+
+    @Override
+    public void onDialogPositiveClick(DialogFragment dialog) {
+        EditText name = (EditText) dialog.getDialog().findViewById(R.id.parkingname);
+        EditText total = (EditText) dialog.getDialog().findViewById(R.id.parkingtotal);
+
+        new AddParkingTask(name.getText().toString(), total.getText().toString()).execute();
+    }
+
+    private class AddParkingTask extends AsyncTask<Void, Void, JsonObject> {
+
+        private String name, total;
+
+        public AddParkingTask(String name, String total) {
+            this.name = name;
+            this.total = total;
+        }
+
+        @Override
+        protected JsonObject doInBackground(Void... voids) {
+            return postNewParking(name, total);
+        }
+
+        private JsonObject postNewParking(String name, String total) {
+            try {
+                URL url = new URL("https://cariparkir.herokuapp.com/api/Parkings");
+                HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+                conn.setReadTimeout(10000);
+                conn.setConnectTimeout(15000);
+                conn.setDoInput(true);
+                conn.setDoOutput(true);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.connect();
+
+                // Send POST output.
+                String bodyRequest = setupBodyRequest(name, total);
+                DataOutputStream printout = new DataOutputStream(conn.getOutputStream());
+                printout.writeBytes(bodyRequest);
+                printout.flush();
+                printout.close();
+
+                int HttpResult = conn.getResponseCode();
+                if(HttpResult ==HttpURLConnection.HTTP_OK){
+                    JsonParser jp = new JsonParser();
+                    JsonElement root = jp.parse(new InputStreamReader((InputStream) conn.getContent()));
+                    JsonObject rootobj = root.getAsJsonObject();
+                    return rootobj;
+
+                }else{
+                    Log.e("MapDemo", "error 1" + conn.getResponseMessage());
+                }
+            } catch (Exception e) {
+                Log.e("MapDemo", "error 2" + e.getLocalizedMessage());
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(JsonObject parking) {
+            super.onPostExecute(parking);
+            createMarker(name,newParkingPos);
+        }
+
+        private String setupBodyRequest(String name, String total) {
+
+            JSONObject jsonParam = new JSONObject();
+
+            try {
+                jsonParam.put("name", name);
+                jsonParam.put("type", "Mall");
+                jsonParam.put("rate", "2000");
+                jsonParam.put("available", Integer.parseInt(total));
+                jsonParam.put("total", Integer.parseInt(total));
+                JSONObject geo = new JSONObject();
+                geo.put("lat", newParkingPos.latitude);
+                geo.put("lng", newParkingPos.longitude);
+                jsonParam.put("geo",geo);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            return jsonParam.toString();
+        }
+    }
+
+    private void createMarker(String name, LatLng position) {
+        MarkerOptions markerOptions =  new MarkerOptions()
+                .position(position)
+                .title(name)
+                .snippet(getDistanceString(position));
+
+        mMap.addMarker(markerOptions);
+    }
+
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        newParkingPos = latLng;
+        showAddParkingDialog();
     }
 
     // Define a DialogFragment that displays the error dialog
