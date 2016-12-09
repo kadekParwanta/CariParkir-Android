@@ -326,6 +326,7 @@ public class MapDemoActivity extends AppCompatActivity implements
                 bookItBtn.setBackgroundColor(Color.parseColor("#ff669900"));
             }
         }
+        selectedMarker.setPosition(parking.getGeo());
         bounceTheMarker(selectedMarker);
     }
 
